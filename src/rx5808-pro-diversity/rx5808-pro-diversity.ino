@@ -90,6 +90,26 @@ const uint8_t channelList[] PROGMEM = {
   19, 18, 32, 17, 33, 16, 7, 34, 8, 24, 6, 9, 25, 5, 35, 10, 26, 4, 11, 27, 3, 36, 12, 28, 2, 13, 29, 37, 1, 14, 30, 0, 15, 31, 38, 20, 21, 39, 22, 23
 };
 
+//Channel Filter - Used to Enable/Disable Channels
+//uint8_t channel_filter[5] = {B00000000, B00000000, B00100010, B01001010, B00000000}; //Enable 5 Channels MultiGP
+uint8_t channel_filter[5] = {B11111111, B11111111, B11111111, B11111111, B11111111}; // Enable All Channels
+
+//Channel Filter Presets
+#define CHANNEL_FILTER_PRESET_NAME_LENGTH 12
+#define CHANNEL_FILTER_PRESET_COUNT 6
+const PROGMEM char channel_filter_preset_names[CHANNEL_FILTER_PRESET_COUNT][CHANNEL_FILTER_PRESET_NAME_LENGTH] = {"Raceband", "MultiGP 5ch", "Band A", "Band B", "Band E", "Fatshark"};
+const PROGMEM uint8_t channel_filter_preset[CHANNEL_FILTER_PRESET_COUNT][CHANNEL_BAND_CT] = {
+                                        {B00000000,B00000000,B00000000,B00000000,B11111111}, //Raceband Only
+                                        {B00000000,B00000000,B00100010,B01001010,B00000000}, //MultiGP 5ch
+                                        {B11111111,B00000000,B00000000,B00000000,B00000000}, //Band A Only
+                                        {B00000000,B11111111,B00000000,B00000000,B00000000}, //Band B Only
+                                        {B00000000,B00000000,B11111111,B00000000,B00000000}, //Band E Only
+                                        {B00000000,B00000000,B00000000,B11111111,B00000000}  //Band F Only
+                                    };
+
+int8_t channel_filter_preset_id = -2; // -1 Custom, -2 All On, -3 All Off, 0+ referre to presets defined above.;
+bool settings_channel_filter_on = false;
+  
 char channel = 0;
 uint8_t channelIndex = 0;
 uint8_t rssi = 0;
@@ -202,7 +222,18 @@ void setup()
         EEPROM.write(EEPROM_ADR_RSSI_MAX_B_L,lowByte(RSSI_MAX_VAL));
         EEPROM.write(EEPROM_ADR_RSSI_MAX_B_H,highByte(RSSI_MAX_VAL));
 #endif
+
+    //Channel Filter On / Off
+        EEPROM.write(EEPROM_ADR_CHANNEL_FILTER_ON, settings_channel_filter_on);
+    //Channel Filters
+        for (int cf_ct=0; cf_ct<=sizeof(channel_filter); cf_ct++) {
+            EEPROM.write(EEPROM_ADR_CHANNEL_FILTER+cf_ct, channel_filter[cf_ct]);
+        }
+    //Channel Filter ID
+        EEPROM.write(EEPROM_ADR_CHANNEL_FILTER_PRESET_ID, channel_filter_preset_id);
+
     }
+
 
     // read last setting from eeprom
     state=EEPROM.read(EEPROM_ADR_STATE);
@@ -227,6 +258,17 @@ void setup()
     rssi_min_b=((EEPROM.read(EEPROM_ADR_RSSI_MIN_B_H)<<8) | (EEPROM.read(EEPROM_ADR_RSSI_MIN_B_L)));
     rssi_max_b=((EEPROM.read(EEPROM_ADR_RSSI_MAX_B_H)<<8) | (EEPROM.read(EEPROM_ADR_RSSI_MAX_B_L)));
 #endif
+    //Get Channel Filter On / Off
+        settings_channel_filter_on=EEPROM.read(EEPROM_ADR_CHANNEL_FILTER_ON);
+
+    //Get Channel Filter Values
+      for (int cf_ct=0; cf_ct<=sizeof(channel_filter); cf_ct++) {
+        channel_filter[cf_ct]=EEPROM.read(EEPROM_ADR_CHANNEL_FILTER+cf_ct);
+      }
+    //Get Channel Filter Preset ID
+        channel_filter_preset_id=EEPROM.read(EEPROM_ADR_CHANNEL_FILTER_PRESET_ID);
+
+
     force_menu_redraw=1;
 
     // Init Display
@@ -477,6 +519,15 @@ void loop()
             case STATE_SETUP_MENU:
 
             break;
+            
+            case STATE_CHANNEL_SETUP:
+            
+            break;
+
+            case STATE_EDIT_CHANNEL_FILTER:
+            
+            break;
+                          
             case STATE_SAVE:
                 EEPROM.write(EEPROM_ADR_TUNE,channelIndex);
                 EEPROM.write(EEPROM_ADR_STATE,state_last_used);
@@ -486,6 +537,15 @@ void loop()
                 for(uint8_t i = 0;i<sizeof(call_sign);i++) {
                     EEPROM.write(EEPROM_ADR_CALLSIGN+i,call_sign[i]);
                 }
+                //Channel Filter On / Off
+                EEPROM.write(EEPROM_ADR_CHANNEL_FILTER_ON, settings_channel_filter_on);
+                //Channel Filters
+                for (uint8_t i=0; i<=sizeof(channel_filter); i++) {
+                    EEPROM.write(EEPROM_ADR_CHANNEL_FILTER+i, channel_filter[i]);
+                }
+                //Channel Filter Preset ID
+                    EEPROM.write(EEPROM_ADR_CHANNEL_FILTER_PRESET_ID, channel_filter_preset_id);
+
 #ifdef USE_DIVERSITY
                 EEPROM.write(EEPROM_ADR_DIVERSITY,diversity_mode);
 #endif
@@ -598,26 +658,38 @@ void loop()
                 time_screen_saver=millis();
                 beep(50); // beep & debounce
                 delay(KEY_DEBOUNCE); // debounce
-                channelIndex++;
-                channel++;
-                channel > CHANNEL_MAX ? channel = CHANNEL_MIN : false;
-                if (channelIndex > CHANNEL_MAX_INDEX)
+                
+                int ct = CHANNEL_MAX_INDEX;
+                do
                 {
-                    channelIndex = CHANNEL_MIN_INDEX;
-                }
+                  channelIndex++;
+                  channel++;
+                  channel > CHANNEL_MAX ? channel = CHANNEL_MIN : false;
+                  if (channelIndex > CHANNEL_MAX_INDEX)
+                  {
+                      channelIndex = CHANNEL_MIN_INDEX;
+                  }
+                  ct--;
+                } while(ct > 0 && (settings_channel_filter_on && !GET_FILTER_BIT(channelIndex))); //Check channel filter. If 1 exit loop
+                
             }
             if( digitalRead(buttonDown) == LOW) // channel DOWN
             {
                 time_screen_saver=millis();
                 beep(50); // beep & debounce
                 delay(KEY_DEBOUNCE); // debounce
-                channelIndex--;
-                channel--;
-                channel < CHANNEL_MIN ? channel = CHANNEL_MAX : false;
-                if (channelIndex > CHANNEL_MAX_INDEX) // negative overflow
+              
+                int ct = CHANNEL_MAX_INDEX; //used to exit loop if no channels are enabled.
+                do
                 {
-                    channelIndex = CHANNEL_MAX_INDEX;
-                }
+                    channelIndex--;
+                    channel--;
+                    channel < CHANNEL_MIN ? channel = CHANNEL_MAX : false;
+                    if (channelIndex > CHANNEL_MAX_INDEX) // negative overflow
+                    {
+                        channelIndex = CHANNEL_MAX_INDEX;
+                    }
+                } while(ct > 0 && (settings_channel_filter_on && !GET_FILTER_BIT(channelIndex))); //Check channel filter. If 1 exit loop
             }
 
             if(!settings_orderby_channel) { // order by frequency
@@ -648,23 +720,31 @@ void loop()
                 { // seeking itself
                     force_seek=0;
                     // next channel
-                    channel+=seek_direction;
-                    if (channel > CHANNEL_MAX)
+                    int ct = CHANNEL_MAX_INDEX; //used to exit loop if no channels are enabled.
+                    do
                     {
-                        // calculate next pass new seek threshold
-                        rssi_seek_threshold = (int)((float)rssi_best * (float)(RSSI_SEEK_TRESHOLD/100.0));
-                        channel=CHANNEL_MIN;
-                        rssi_best = 0;
-                    }
-                    else if(channel < CHANNEL_MIN)
-                    {
-                        // calculate next pass new seek threshold
-                        rssi_seek_threshold = (int)((float)rssi_best * (float)(RSSI_SEEK_TRESHOLD/100.0));
-                        channel=CHANNEL_MAX;
-                        rssi_best = 0;
-                    }
-                    rssi_seek_threshold = rssi_seek_threshold < 5 ? 5 : rssi_seek_threshold; // make sure we are not stopping on everyting
-                    channelIndex = pgm_read_byte_near(channelList + channel);
+                      channel+=seek_direction;
+                      ct--;
+                    
+                    
+                      if (channel > CHANNEL_MAX)
+                      {
+                          // calculate next pass new seek threshold
+                          rssi_seek_threshold = (int)((float)rssi_best * (float)(RSSI_SEEK_TRESHOLD/100.0));
+                          channel=CHANNEL_MIN;
+                          rssi_best = 0;
+                      }
+                      else if(channel < CHANNEL_MIN)
+                      {
+                          // calculate next pass new seek threshold
+                          rssi_seek_threshold = (int)((float)rssi_best * (float)(RSSI_SEEK_TRESHOLD/100.0));
+                          channel=CHANNEL_MAX;
+                          rssi_best = 0;
+                      }
+                    
+                        rssi_seek_threshold = rssi_seek_threshold < 5 ? 5 : rssi_seek_threshold; // make sure we are not stopping on everyting
+                        channelIndex = pgm_read_byte_near(channelList + channel);
+                    } while(ct > 0 && (settings_channel_filter_on && !GET_FILTER_BIT(channelIndex)));
                 }
             }
             else
@@ -726,7 +806,16 @@ void loop()
         uint8_t bestChannelName = pgm_read_byte_near(channelNames + channelIndex);
         uint16_t bestChannelFrequency = pgm_read_word_near(channelFreqTable + channelIndex);
 
-        drawScreen.updateBandScanMode((state == STATE_RSSI_SETUP), channel, rssi, bestChannelName, bestChannelFrequency, rssi_setup_min_a, rssi_setup_max_a);
+        //Figure out if the channel is enabled or not.
+        bool channel_enabled = 0; 
+        if(settings_channel_filter_on) {
+            channel_enabled = bitRead(channel_filter[channelIndex / 8], channelIndex - (channelIndex / 8) * 8);
+        } else {
+            channel_enabled = 1;
+        }
+             
+
+        drawScreen.updateBandScanMode((state == STATE_RSSI_SETUP), channel, rssi, bestChannelName, bestChannelFrequency, rssi_setup_min_a, rssi_setup_max_a, channel_enabled);
 
         // next channel
         if (channel < CHANNEL_MAX)
@@ -813,9 +902,16 @@ void loop()
             {
                 // do something about the users selection
                 switch(menu_id) {
+#ifdef OLED_128x64_ADAFRUIT_SCREENS                
+                    case 0: // Setup Channels Menu
+                        in_menu = 0;
+                        state = STATE_CHANNEL_SETUP;
+                        break;
+#else
                     case 0: // Channel Order Channel/Frequency
                         settings_orderby_channel = !settings_orderby_channel;
                         break;
+#endif
                     case 1:// Beeps enable/disable
                         settings_beeps = !settings_beeps;
                         break;
@@ -836,7 +932,7 @@ void loop()
                         }
                         state=STATE_RSSI_SETUP;
                         break;
-                    case 4:
+                   case 4:
                         in_menu = 0; // save & exit menu
                         state=STATE_SAVE;
                         break;
@@ -887,6 +983,183 @@ void loop()
             while(editing==-1 && (digitalRead(buttonMode) == LOW || digitalRead(buttonUp) == LOW || digitalRead(buttonDown) == LOW));
         }
         while(in_menu);
+    }
+    
+    if(state == STATE_CHANNEL_SETUP)
+    {
+        // Channel Setup Menu
+        char menu_id=0;
+        in_menu=1;
+        drawScreen.setupMenu();
+        
+        char channel_filter_preset_name[CHANNEL_FILTER_PRESET_NAME_LENGTH];
+        int8_t old_channel_filter_preset_id = channel_filter_preset_id;
+
+        do{
+            in_menu_time_out=50;
+
+            //Figure out preset name and poplate varible with it.
+            switch (channel_filter_preset_id) {
+                case -1:
+                    strcpy(channel_filter_preset_name,"Custom");
+                    break;
+                case -2:
+                    strcpy(channel_filter_preset_name,"All On");
+                    break;
+                case -3:
+                    strcpy(channel_filter_preset_name,"All Off");
+                    break;
+                default:
+                    for(uint8_t i = 0;i<CHANNEL_FILTER_PRESET_NAME_LENGTH;i++) {
+                        channel_filter_preset_name[i] = pgm_read_byte_near(channel_filter_preset_names[channel_filter_preset_id] + i);
+                    }
+                    
+                    break;
+            }
+
+
+            drawScreen.updateChannelSetupMenu(menu_id, settings_orderby_channel, settings_channel_filter_on, channel_filter_preset_name, channel_filter_preset_id);
+            while(--in_menu_time_out && ((digitalRead(buttonMode) == HIGH) && (digitalRead(buttonUp) == HIGH) && (digitalRead(buttonDown) == HIGH))) // wait for next key press or time out
+            {
+                delay(100); // timeout delay
+            }
+
+            if(in_menu_time_out <= 0 ) {
+                state = state_last_used;
+                break; // Timed out, Don't save...
+            }
+
+            if(digitalRead(buttonMode) == LOW)        // channel UP
+            {
+                // do something about the users selection
+                switch(menu_id) {
+                    case 0: // Channel Order Channel/Frequency
+                        settings_orderby_channel = !settings_orderby_channel;
+                        break;
+                    case 1: //Channel Filter On/Off
+                        settings_channel_filter_on = !settings_channel_filter_on;
+                        break;
+                    case 2://Select Channel Filter Preset
+                            digitalWrite(led, HIGH);
+                            digitalWrite(buzzer, LOW); // activate beep
+                            delay(50/2);
+                            digitalWrite(led, LOW);
+                            digitalWrite(buzzer, HIGH);
+
+                        channel_filter_preset_id++;
+                        if ((channel_filter_preset_id >= CHANNEL_FILTER_PRESET_COUNT) || (channel_filter_preset_id < -3)) {
+                            channel_filter_preset_id = -3;
+                        }
+                        break;
+                    case 3://Edit Channel Filter
+                        in_menu=0;
+                        state=STATE_EDIT_CHANNEL_FILTER;
+                        break;
+                   case 4: //Exit
+                        in_menu=0;
+                        state=STATE_SETUP_MENU;
+                        break;
+                }
+            }
+            else if(digitalRead(buttonUp) == LOW) {
+                menu_id--;
+            }
+            else if(digitalRead(buttonDown) == LOW) {
+                    menu_id++;
+            }
+
+            if(menu_id > 4) {
+                menu_id = 0;
+            }
+            if(menu_id < 0) {
+                menu_id = 4;
+            }
+
+            beep(50); // beep & debounce
+            do{
+                delay(150);// wait for button release
+            }
+            while((digitalRead(buttonMode) == LOW || digitalRead(buttonUp) == LOW || digitalRead(buttonDown) == LOW));
+
+            //Check if Channel Filter Preset has changed. If so load that preset into the channel_filter
+            if (old_channel_filter_preset_id != channel_filter_preset_id) {
+                switch (channel_filter_preset_id) {
+                    case -1:
+                        //Do Nothing;
+                        break;
+                    case -2: //All On;
+                    case -3: //All Off
+                        for(uint8_t i = CHANNEL_MIN_INDEX;i<=CHANNEL_MAX_INDEX;i++) {
+                            SET_FILTER_BIT(i, (channel_filter_preset_id==-2));
+                        }
+                        break;
+                    default: //Set channel filter to values from the preset
+                        for(uint8_t i = CHANNEL_MIN_INDEX;i<=CHANNEL_MAX_INDEX;i++) {
+                            SET_FILTER_BIT(i, GET_FILTER_BIT_PRESET(channel_filter_preset_id, i));
+                        }
+                        break;
+                }
+            }
+
+        }
+        while(in_menu);
+    }
+
+    if(state == STATE_EDIT_CHANNEL_FILTER)
+    {
+        char channel_id=CHANNEL_MAX+1;
+        in_menu=1;
+        do{
+            in_menu_time_out=150;
+            drawScreen.updateEditChannelFilter(channel_id, channel_filter, channelFreqTable, channelNames);
+            while(--in_menu_time_out && ((digitalRead(buttonMode) == HIGH) && (digitalRead(buttonUp) == HIGH) && (digitalRead(buttonDown) == HIGH))) // wait for next key press or time out
+            {
+                delay(100); // timeout delay
+            }
+
+            if(in_menu_time_out <= 0 ) {
+                state = STATE_CHANNEL_SETUP;
+                break; // Timed out, Don't save...
+            }
+
+            if(digitalRead(buttonMode) == LOW)        // channel UP
+            {
+                // do something about the users selection
+                switch(channel_id) {
+                    case CHANNEL_MAX+1: //Exit
+                        in_menu=0;
+                        state = STATE_CHANNEL_SETUP;
+                        break;
+                    default:
+                        if ((channel_id>=CHANNEL_MIN) && (channel_id<=CHANNEL_MAX)) {
+                            channel_filter_preset_id = -1; //Set Channel Filter ID to Custom
+                            SET_FILTER_BIT(channel_id, !GET_FILTER_BIT(channel_id)); //Toggle channel enabled / disabled
+                         }
+                        break;
+
+                }
+            }
+            else if(digitalRead(buttonUp) == LOW) {
+                    channel_id--;
+            }
+            else if(digitalRead(buttonDown) == LOW) {
+                    channel_id++;
+            }
+ 
+            if(channel_id > CHANNEL_MAX+1) {
+                channel_id = CHANNEL_MIN;
+            }
+            if(channel_id < CHANNEL_MIN) {
+                channel_id = CHANNEL_MAX+1;
+            }
+
+            beep(50); // beep & debounce
+            do{
+                delay(150);// wait for button release
+            }
+            while((digitalRead(buttonMode) == LOW || digitalRead(buttonUp) == LOW || digitalRead(buttonDown) == LOW));
+
+        } while (in_menu);
     }
 
     /*****************************/
@@ -1226,3 +1499,48 @@ void SERIAL_ENABLE_HIGH()
   digitalWrite(slaveSelectPin, HIGH);
   delayMicroseconds(1);
 }
+
+bool GET_FILTER_BIT(int cIndex) { //Return a single bit form an array of bytes.
+    int bandTemp;
+    int channelTemp;
+    
+    if (cIndex != 0) {
+        bandTemp = cIndex / CHANNEL_BAND_SIZE; //Calc array index for filter
+    } else {
+        bandTemp = 0;
+    }
+
+    channelTemp = cIndex - (bandTemp * CHANNEL_BAND_SIZE); //get the channel index down to between 0-7
+  
+    return bitRead(channel_filter[bandTemp], channelTemp); //Get bit from filter array
+}
+
+void SET_FILTER_BIT(int cIndex, bool value) {
+    int bandTemp;
+    int channelTemp;
+  
+    if (cIndex != 0) {
+        bandTemp = cIndex / CHANNEL_BAND_SIZE; //Calc array index for filter
+    } else {
+        bandTemp = 0;
+    }
+
+    channelTemp = cIndex - (bandTemp * CHANNEL_BAND_SIZE); //get the channel index down to between 0-7
+
+    bitWrite(channel_filter[bandTemp], channelTemp, value); //Set bit in filter array
+}
+
+bool GET_FILTER_BIT_PRESET(int preset_id, int cIndex) {
+    int bandTemp;
+    int channelTemp;
+    if (cIndex != 0) {
+        bandTemp = cIndex / CHANNEL_BAND_SIZE; //Calc array index for filter
+    } else {
+        bandTemp = 0;
+    }
+
+    channelTemp = cIndex - (bandTemp * CHANNEL_BAND_SIZE); //get the channel index down to between 0-7
+
+    return bitRead(pgm_read_byte_near(&(channel_filter_preset[preset_id][bandTemp])), channelTemp);
+}
+

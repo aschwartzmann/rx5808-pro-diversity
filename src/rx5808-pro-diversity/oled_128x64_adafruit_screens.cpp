@@ -75,7 +75,7 @@ char screens::begin(const char *call_sign) {
     display.setTextColor(WHITE);
     display.setCursor(0,8*1+4);
     display.print(PSTR2("Power:"));
-    display.setCursor(display.width()-6*2,8*1+4);
+    display.setCursor(display.width()-8*2,8*1+4);
     display.print(PSTR2("OK"));
     display.setCursor(0,8*2+4);
 
@@ -84,7 +84,7 @@ char screens::begin(const char *call_sign) {
     display.print(PSTR2("Diversity:"));
     display.display();
     delay(250);
-    display.setCursor(display.width()-6*8,8*2+4);
+    display.setCursor(display.width()-7*8,8*2+4);
     if(isDiversity()) {
         display.print(PSTR2(" ENABLED"));
     }
@@ -304,7 +304,7 @@ void screens::bandScanMode(uint8_t state) {
     display.display();
 }
 
-void screens::updateBandScanMode(bool in_setup, uint8_t channel, uint8_t rssi, uint8_t channelName, uint16_t channelFrequency, uint16_t rssi_setup_min_a, uint16_t rssi_setup_max_a) {
+void screens::updateBandScanMode(bool in_setup, uint8_t channel, uint8_t rssi, uint8_t channelName, uint16_t channelFrequency, uint16_t rssi_setup_min_a, uint16_t rssi_setup_max_a, bool channel_enabled) {
     #define SCANNER_LIST_X_POS 60
     static uint8_t writePos = SCANNER_LIST_X_POS;
     uint8_t rssi_scaled=map(rssi, 1, 100, 1, 30);
@@ -312,7 +312,14 @@ void screens::updateBandScanMode(bool in_setup, uint8_t channel, uint8_t rssi, u
     if(channel != last_channel) // only updated on changes
     {
         display.fillRect((channel*3)+4,display.height()-12-30,3,30-rssi_scaled,BLACK);
-        display.fillRect((channel*3)+4,hight,3,rssi_scaled,WHITE);
+
+        //Draw thick line for enabled channels and thin line for disabled channels
+        if (channel_enabled) {
+            display.fillRect((channel*3)+4,hight,3,rssi_scaled,WHITE);
+        } else {
+            display.drawRect((channel*3)+4,hight,1,rssi_scaled,WHITE);
+        }
+
         // Show Scan Position
         display.fillRect((channel*3)+4+3,display.height()-12-30,1,30,BLACK);
 
@@ -524,7 +531,6 @@ void screens::updateDiversity(char active_receiver, uint8_t rssiA, uint8_t rssiB
 }
 #endif
 
-
 void screens::setupMenu(){
 }
 void screens::updateSetupMenu(uint8_t menu_id, bool settings_beeps, bool settings_orderby_channel, const char *call_sign, char editing){
@@ -533,6 +539,11 @@ void screens::updateSetupMenu(uint8_t menu_id, bool settings_beeps, bool setting
     //selected
     display.fillRect(0, 10*menu_id+12, display.width(), 10, WHITE);
 
+#ifdef OLED_128x64_ADAFRUIT_SCREENS  
+    display.setTextColor(menu_id == 0 ? BLACK : WHITE);
+    display.setCursor(5,10*1+3);
+    display.print(PSTR2("CHANNEL SETUP"));
+#else
     display.setTextColor(menu_id == 0 ? BLACK : WHITE);
     display.setCursor(5,10*1+3);
     display.print(PSTR2("ORDER: "));
@@ -542,6 +553,7 @@ void screens::updateSetupMenu(uint8_t menu_id, bool settings_beeps, bool setting
     else {
         display.print(PSTR2("FREQUENCY"));
     }
+#endif
 
     display.setTextColor(menu_id == 1 ? BLACK : WHITE);
     display.setCursor(5,10*2+3);
@@ -579,7 +591,103 @@ void screens::updateSetupMenu(uint8_t menu_id, bool settings_beeps, bool setting
     display.display();
 }
 
-void screens::save(uint8_t mode, uint8_t channelIndex, uint16_t channelFrequency,const char *call_sign) {
+void screens::updateChannelSetupMenu(uint8_t menu_id, bool settings_orderby_channel, bool settings_channel_filter_on, const char *channel_filter_preset_name, int8_t channel_filter_preset_id) {
+    reset();
+    //Screen Title
+    drawTitleBox(PSTR2("CHANNEL SETUP"));
+
+    //Highlight Selected
+    display.fillRect(0, 10*menu_id+12, display.width(), 10, WHITE);
+
+    //Channel Sort Channel / Frequency
+    display.setTextColor(menu_id == 0 ? BLACK : WHITE);
+    display.setCursor(5,10*1+3);
+    display.print(PSTR2("ORDER: "));
+    if(settings_orderby_channel) {
+        display.print(PSTR2("CHANNEL  "));
+    }
+    else {
+        display.print(PSTR2("FREQUENCY"));
+    }
+
+    //Channel Filter On / Off
+    display.setTextColor(menu_id == 1 ? BLACK : WHITE);
+    display.setCursor(5,10*2+3);
+    display.print(PSTR2("CHANNEL FILTER: "));
+    if(settings_channel_filter_on) {
+        display.print(PSTR2("ON "));
+    }
+    else {
+        display.print(PSTR2("OFF"));
+    }
+
+    //Display Name of Current Preset
+    display.setTextColor(menu_id == 2 ? BLACK : WHITE);
+    display.setCursor(5,10*3+3);
+    display.print(PSTR2("PRESET: "));
+    display.print(channel_filter_preset_name);
+
+    //Edit Filter
+    display.setTextColor(menu_id == 3 ? BLACK : WHITE);
+    display.setCursor(5,10*4+3);
+    display.print(PSTR2("EDIT FILTER"));
+
+    //Exit
+    display.setTextColor(menu_id == 4 ? BLACK : WHITE);
+    display.setCursor(5,10*5+3);
+    display.print(PSTR2("EXIT"));
+    display.display();
+
+}
+
+void screens::updateEditChannelFilter(uint8_t channel_id, const uint8_t *channel_filter, const uint16_t *channelFreqTable, const uint8_t *channelNames) {
+
+    int screen_line;
+    int ce_ct;
+    int ce_ct_adj;
+
+    reset();
+    drawTitleBox(PSTR2("FILTER EDIT"));
+
+    display.display();
+    screen_line = 1;
+
+    display.fillRect(0, 10*2+12, display.width(), 10, WHITE);
+    for (ce_ct=(channel_id-2);ce_ct<=(channel_id+2);ce_ct++) {
+        if ((ce_ct>=CHANNEL_MIN-1) && (ce_ct<=CHANNEL_MAX+1)) {
+            ce_ct_adj = ce_ct;
+        } else if (ce_ct <= CHANNEL_MIN) {
+            ce_ct_adj = (CHANNEL_MAX+1) + ce_ct;
+        } else {
+            ce_ct_adj = (CHANNEL_MIN-1) + abs((CHANNEL_MAX+1)-ce_ct);
+        }
+
+        display.setCursor(5,10*screen_line+3);
+        display.setTextColor(screen_line == 3 ? BLACK : WHITE);
+
+        if ((ce_ct_adj == (CHANNEL_MIN-1)) || (ce_ct_adj == (CHANNEL_MAX+1))) {
+            display.print(PSTR2("EXIT"));
+        } else {
+                        
+            //Display Channel Name
+            display.print(pgm_read_byte_near(channelNames + ce_ct_adj), HEX);
+            
+            //Display Channel Freq
+            display.print(PSTR2(" ("));
+            display.print(pgm_read_word_near(channelFreqTable + ce_ct_adj), DEC);
+            display.print(PSTR2("): "));
+
+            //Display Channel Status On/Off
+            display.print((bitRead(channel_filter[ce_ct_adj / 8], ce_ct_adj - (ce_ct_adj / 8) * 8)) == 1 ? PSTR2("On ") : PSTR2("Off"));
+        }
+        screen_line++;
+    }
+
+
+    display.display();
+}
+
+void screens::save(uint8_t mode, uint8_t channelIndex, uint16_t channelFrequency, const char *call_sign) {
     reset();
     drawTitleBox(PSTR2("SAVE SETTINGS"));
 
@@ -651,6 +759,4 @@ void screens::updateSave(const char * msg) {
     display.print(msg);
     display.display();
 }
-
-
 #endif

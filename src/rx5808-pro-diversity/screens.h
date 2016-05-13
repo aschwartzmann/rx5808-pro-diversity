@@ -59,7 +59,7 @@ class screens
 
         // BAND SCAN
         void bandScanMode(uint8_t state);
-        void updateBandScanMode(bool in_setup, uint8_t channel, uint8_t rssi, uint8_t channelName, uint16_t channelFrequency, uint16_t rssi_setup_min_a, uint16_t rssi_setup_max_a);
+        void updateBandScanMode(bool in_setup, uint8_t channel, uint8_t rssi, uint8_t channelName, uint16_t channelFrequency, uint16_t rssi_setup_min_a, uint16_t rssi_setup_max_a, bool channel_enabled);
 
         // SCREEN SAVER
         void screenSaver(uint8_t channelName, uint16_t channelFrequency, const char *call_sign);
@@ -74,6 +74,12 @@ class screens
         // SETUP MENU
         void setupMenu();
         void updateSetupMenu(uint8_t menu_id,bool settings_beeps,bool settings_orderby_channel, const char *call_sign, char editing);
+
+        //CHANNEL SETUP MENU
+        void updateChannelSetupMenu(uint8_t menu_id, bool settings_orderby_channel, bool settings_channel_filter_on, const char *channel_filter_preset_name, int8_t channel_filter_preset_id);
+
+        //Channel Filter Setup
+        void updateEditChannelFilter(uint8_t channel_id, const uint8_t *channel_filter, const uint16_t *channelFreqTable, const uint8_t *channelNames);
 
         // SAVE
         void save(uint8_t mode, uint8_t channelIndex, uint16_t channelFrequency, const char *call_sign);

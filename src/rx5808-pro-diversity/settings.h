@@ -41,7 +41,7 @@ SOFTWARE.
 
 // Feature Togglels
 #define USE_DIVERSITY
-#define USE_IR_EMITTER
+//#define USE_IR_EMITTER
 //#define USE_FLIP_SCREEN
 #define USE_BOOT_LOGO
 
@@ -77,10 +77,10 @@ SOFTWARE.
 #endif
 
 // this two are minimum required
-#define buttonUp 2
+#define buttonUp 4
 #define buttonMode 3
 // optional comfort buttons
-#define buttonDown 4
+#define buttonDown 2
 #define buttonSave 5
 // Buzzer
 #define buzzer 6
@@ -114,6 +114,8 @@ SOFTWARE.
 #define STATE_SAVE 6
 #define STATE_RSSI_SETUP 7
 #define STATE_SCREEN_SAVER 8
+#define STATE_CHANNEL_SETUP 9
+#define STATE_EDIT_CHANNEL_FILTER 10 
 
 // Seconds to wait before force entering screensaver
 #define SCREENSAVER_TIMEOUT 30
@@ -124,6 +126,7 @@ SOFTWARE.
 #define CHANNEL_BAND_SIZE 8
 #define CHANNEL_MIN_INDEX 0
 #define CHANNEL_MAX_INDEX 39
+#define CHANNEL_BAND_CT 5
 
 #ifdef rx5808
     // rx5808 module need >20ms to tune.
@@ -161,5 +164,8 @@ SOFTWARE.
 #define EEPROM_ADR_BEEP 11
 #define EEPROM_ADR_ORDERBY 12
 #define EEPROM_ADR_CALLSIGN 20
+#define EEPROM_ADR_CHANNEL_FILTER_PRESET_ID 30
+#define EEPROM_ADR_CHANNEL_FILTER_ON 31
+#define EEPROM_ADR_CHANNEL_FILTER 32
 
 #endif // file_defined
