@@ -91,7 +91,6 @@ const uint8_t channelList[] PROGMEM = {
 };
 
 //Channel Filter - Used to Enable/Disable Channels
-//uint8_t channel_filter[5] = {B00000000, B00000000, B00100010, B01001010, B00000000}; //Enable 5 Channels MultiGP
 uint8_t channel_filter[5] = {B11111111, B11111111, B11111111, B11111111, B11111111}; // Enable All Channels
 
 //Channel Filter Presets
