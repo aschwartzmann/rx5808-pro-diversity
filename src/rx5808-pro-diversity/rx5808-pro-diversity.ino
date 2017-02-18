@@ -96,11 +96,12 @@ uint8_t channel_filter[5] = {B11111111, B11111111, B11111111, B11111111, B111111
 
 //Channel Filter Presets
 #define CHANNEL_FILTER_PRESET_NAME_LENGTH 12
-#define CHANNEL_FILTER_PRESET_COUNT 6
-const PROGMEM char channel_filter_preset_names[CHANNEL_FILTER_PRESET_COUNT][CHANNEL_FILTER_PRESET_NAME_LENGTH] = {"Raceband", "MultiGP 5ch", "Band A", "Band B", "Band E", "Fatshark"};
+#define CHANNEL_FILTER_PRESET_COUNT 7
+const PROGMEM char channel_filter_preset_names[CHANNEL_FILTER_PRESET_COUNT][CHANNEL_FILTER_PRESET_NAME_LENGTH] = {"Raceband", "MultiGP 5ch", "MultiGP 6ch", "Band A", "Band B", "Band E", "Fatshark"};
 const PROGMEM uint8_t channel_filter_preset[CHANNEL_FILTER_PRESET_COUNT][CHANNEL_BAND_CT] = {
                                         {B00000000,B00000000,B00000000,B00000000,B11111111}, //Raceband Only
                                         {B00000000,B00000000,B00100010,B01001010,B00000000}, //MultiGP 5ch
+                                        {B00000000,B00000000,B00101010,B01001010,B00000000}, //MultiGP 6ch
                                         {B11111111,B00000000,B00000000,B00000000,B00000000}, //Band A Only
                                         {B00000000,B11111111,B00000000,B00000000,B00000000}, //Band B Only
                                         {B00000000,B00000000,B11111111,B00000000,B00000000}, //Band E Only
